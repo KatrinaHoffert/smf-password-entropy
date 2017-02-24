@@ -6,6 +6,11 @@ by using more characters from the same set vs a larger set of characters (upperc
 This does not take into account how passwords might be vulnerable to a dictionary attack or simply because the
 password follows known patterns (such as the common pattern of putting a number at the very end of the password).
 
+This extension is currently in use on [the MegaGlest forum](https://forum.megaglest.org).
+
+This is actually a very old work (from mid-2013) that I just recently thrown into a repo. Guess my 2013 self
+had no discovered VCSes yet!
+
 ## Functionality
 This extension modifies all password *creation* inputs. This includes on account creation, changing your password,
 and resetting your password. A minimum entropy threshold is then required for the password to be accepted (replacing
