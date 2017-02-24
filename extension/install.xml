@@ -1,0 +1,773 @@
+<?xml version="1.0"?>
+<!DOCTYPE modification SYSTEM "http://www.simplemachines.org/xml/modification">
+<modification xmlns="http://www.simplemachines.org/xml/modification" xmlns:smf="http://www.simplemachines.org/">
+	<id>theOmega:passwordEntropyParsing</id>
+	<name>passwordEntropyParsing</name>
+	<version>1.4</version>
+
+	<file name="$sourcedir/ManageSettings.php">
+		<!-- Add the option for entropic password security to the password strength selection box -->
+		<operation>
+			<search position="replace"><![CDATA[
+			// Password strength.
+			array('select', 'password_strength', array($txt['setting_password_strength_low'], $txt['setting_password_strength_medium'], $txt['setting_password_strength_high'])),
+		'',]]></search>
+			<add><![CDATA[
+			// Password strength.
+			array('select', 'password_strength', array($txt['setting_password_strength_low'], $txt['setting_password_strength_medium'], $txt['setting_password_strength_high'], $txt['setting_password_strength_entropic'])),
+		'',]]></add>
+		</operation>
+		<!-- Add the option to configure the threshold and labels (in bits of entropy). -->
+		<operation>
+			<search position="before"><![CDATA[
+	$config_vars = array(
+		// Mod authors, add any settings UNDER this line. Include a comma at the end of the line and don't remove this statement!!]]></search>
+			<add><![CDATA[
+		array('int', 'password_entropy_threshold'),
+		array('int', 'password_entropy_okay'),
+		array('int', 'password_entropy_good'),
+		array('int', 'password_entropy_great'),]]></add>
+		</operation>
+	</file>
+
+	<file name="$sourcedir/Profile-Modify.php">
+		<!-- Adds hook for placing password strength bar after "change password" option in user's profile. -->
+		<operation>
+			<search position="before"><![CDATA[
+		'passwrd2' => array(
+			'type' => 'password',
+			'label' => $txt['verify_pass'],
+			'enabled' => empty($cur_profile['openid_uri']),
+			'size' => 20,
+			'value' => '',
+			'permission' => 'profile_identity',
+			'is_dummy' => true,
+		),]]></search>
+			<add><![CDATA[
+		'password_complexity' => array(
+			'type' => 'callback',
+			'callback_func' => 'password_complexity_profile',
+			'permission' => 'profile_identity',
+		),]]></add>
+		</operation>
+		<!-- Implements the above hook by placing it after the "verify password" area. -->
+		<operation>
+			<search position="replace"><![CDATA[
+			'passwrd1', 'passwrd2', 'hr',]]></search>
+			<add><![CDATA[
+			'passwrd1', 'passwrd2', 'password_complexity', 'hr',]]></add>
+		</operation>
+	</file>
+
+	<file name="$sourcedir/Subs-Auth.php">
+		<operation>
+			<search position="after"><![CDATA[
+// This function simply checks whether a password meets the current forum rules.
+function validatePassword($password, $username, $restrict_in = array())]]></search>
+			<add><![CDATA[
+// Utility function that is used to determine the character value of a character with
+// support for unicode. Written by arglanir@gmail.com
+function ordutf8($string, &$offset)
+{
+	$code = ord(substr($string, $offset,1)); 
+	if ($code >= 128) {        //otherwise 0xxxxxxx
+		if ($code < 224) $bytesnumber = 2;                //110xxxxx
+		else if ($code < 240) $bytesnumber = 3;        //1110xxxx
+		else if ($code < 248) $bytesnumber = 4;    //11110xxx
+		$codetemp = $code - 192 - ($bytesnumber > 2 ? 32 : 0) - ($bytesnumber > 3 ? 16 : 0);
+		for ($i = 2; $i <= $bytesnumber; $i++) {
+			$offset ++;
+			$code2 = ord(substr($string, $offset, 1)) - 128;        //10xxxxxx
+			$codetemp = $codetemp*64 + $code2;
+		}
+		$code = $codetemp;
+	}
+	$offset += 1;
+	if ($offset >= strlen($string)) $offset = -1;
+	return $code;
+}
+]]></add>
+		</operation>
+		<!-- Don't enforce the minimum length if using the entropic method (as entropic difficulty is dependent on the length and character set, so length is variable). -->
+		<operation>
+			<search position="replace"><![CDATA[
+	// Perform basic requirements first.
+	if ($smcFunc['strlen']($password) < (empty($modSettings['password_strength']) ? 4 : 8))]]></search>
+			<add><![CDATA[
+	// Perform basic requirements first. Don't enforce the length limit if we're using the entropy method
+	if ($smcFunc['strlen']($password) < (empty($modSettings['password_strength']) ? 4 : 8) && $modSettings['password_strength'] != 3)]]></add>
+		</operation>
+		<!-- The server side processing. First of all, only enforce the hard test if that was chosen. Otherwise, we must be using the entropic method,
+			 so perform the bits of entropy calculation. We only need to calculate whether or not we exceeded the threshold. -->
+		<operation>
+			<search position="replace"><![CDATA[
+	// Otherwise, hard test next, check for numbers and letters, uppercase too.
+	$good = preg_match('~(\D\d|\d\D)~', $password) != 0;
+	$good &= $smcFunc['strtolower']($password) != $password;
+
+	return $good ? null : 'chars';]]></search>
+			<add><![CDATA[
+	// Otherwise, hard test next, check for numbers and letters, uppercase too (don't do this if we're using the entropy method)
+	if($modSettings['password_strength'] == 2)
+	{
+		$good = preg_match('~(\D\d|\d\D)~', $password) != 0;
+		$good &= $smcFunc['strtolower']($password) != $password;
+
+		return $good ? null : 'chars';
+	}
+	
+	// Otherwise it must be entropic
+	if($smcFunc['strlen']($password) != 0)
+	{
+		// Initialize counters to zero
+		$uppercase = 0;
+		$lowercase = 0;
+		$numbers = 0;
+		$symbols = 0;
+		$other = 0;
+		$characterSet = 0;
+
+		// Loop through each letter
+		for($i = 0; $i < $smcFunc['strlen']($password); $i++)
+		{
+			if(preg_match('/[A-Z]/', $password[$i])) // At least one uppercase
+			{
+				$uppercase++;
+			}
+			else if(preg_match('/[a-z]/', $password[$i])) // At least one lowercase
+			{
+				$lowercase++;
+			}
+			else if(preg_match('/[0-9]/', $password[$i])) // At least one number
+			{
+				$numbers++;
+			}
+			else if(preg_match('/[\\\`~!@#\$%\^&\*\(\)\[\]\{\};:"\'\|,<\.>\/\?\-_\+=]/', $password[$i])) // At least one simple symbol
+			{
+				$symbols++;
+			}
+			else // At least one other (foreign?) character
+			{
+				$other++;
+			}
+		}
+		
+		$duplicateCounter = 0;
+		$seriesCounter = 0;
+		$lastChar = '';
+		$lastCharOffset = 0;
+		
+		// A loop for checking characters by unicode decimal value (offset required
+		// as unicode characters don't split easily due to multiple bytes)
+		$offset = 0;
+		while ($offset >= 0)
+		{
+			$currentChar = ordutf8($password, $offset);
+			// Repeating chracters
+			if($currentChar == $lastChar)
+			{
+				$duplicateCounter++;
+			}
+			// Character in alphabetical series
+			else if($currentChar == $lastChar + 1)
+			{
+				$seriesCounter++;
+			}
+			// Series or row of duplicates broken
+			else
+			{
+				$duplicateCounter = 0;
+				$seriesCounter = 0;
+			}
+			$lastChar = $currentChar;
+		}
+		
+		if($duplicateCounter > 2) // Can't be more than 4 duplicate characters in a row
+		{
+			return 'entropic_failure_duplicates';
+		}
+		if($seriesCounter > 1) // Can't be more than 3 characters in a series
+		{
+			return 'entropic_failure_series';
+		}
+
+		// If a member of the character set appeared, increase the net character 
+		// set size based on the number of characters in the set
+		if($uppercase)
+		{
+			$characterSet += 26; // ABCDEFGHIJKLMNOPQRSTUVWXYZ
+		}
+		if($lowercase)
+		{
+			$characterSet += 26; // abcdefghijklmnopqrstuvwxyz
+		}
+		if($numbers)
+		{
+			$characterSet += 10; // 0123456789
+		}
+		if($symbols)
+		{
+			$characterSet += 32; // `~!@#$%^&*()-_+={}[]|\;:"'<>,.?/
+		}
+		if($other)
+		{
+			$characterSet += 128; // Other stuff; an arbritarty value to give these foreign characters weight
+		}
+
+		// Entropy equals [Password length] * log_2[Character set size]		
+		if(floor($smcFunc['strlen']($password) * log($characterSet, 2)) >= (isset($modSettings['password_entropy_threshold']) ? $modSettings['password_entropy_threshold'] : 45 ))
+		{
+			return null; // Passed minimum
+		}
+		else
+		{
+			return 'entropic_failure'; // Failed
+		}
+	}
+	else
+	{
+		return 'entropic_failure'; // zero length
+	}]]></add>
+		</operation>
+	</file>
+
+	<file name="$themedir/Profile.template.php">
+		<!-- Creates the functionality of the previously added callback. This replicates the password strength bar from the registration stage
+		     with a slight modification for the password location. -->
+		<operation>
+			<search position="before"><![CDATA[
+	// Any final spellchecking stuff?
+	if (!empty($context['show_spellchecking']))
+		echo '
+		<form name="spell_form" id="spell_form" method="post" accept-charset="', $context['character_set'], '" target="spellWindow" action="', $scripturl, '?action=spellcheck"><input type="hidden" name="spellstring" value="" /></form>';
+}]]></search>
+			<add><![CDATA[
+
+function template_profile_password_complexity_profile()
+{
+	global $modSettings, $txt;
+	
+	echo '<dl class="register_form" id="password_entropy_field">
+			<dt><strong>', $txt['password_entropy_strength'], ':</strong></dt>
+			<dd>
+				<div id="entropyBackground"><div id="entropyValue"></div></div><span id="entropyDescription">', $txt['password_entropy_no_pass'], '</span>
+			</dd>
+		</dl>
+		<script>
+			var passwordField = document.getElementById(\'passwrd1\');
+			var entropyValue = document.getElementById(\'entropyValue\');
+			var entropyDescription = document.getElementById(\'entropyDescription\');
+			var lastPassword;
+			
+			// Calculate entropy on key release or key press
+			passwordField.onkeyup = function()
+			{
+				CalculateEntropy();
+			}
+			passwordField.onkeydown = function()
+			{
+				CalculateEntropy();
+			}
+			
+			function CalculateEntropy()
+			{
+				var uppercase = 0;
+				var lowercase = 0;
+				var numbers = 0;
+				var symbols = 0;
+				var other = 0;
+				var characterSet = 0;
+
+				// Loop through each letter
+				for(var i = 0; i < passwordField.value.length; i++)
+				{
+					// Count the number of letters of each type
+					if(passwordField.value[i].match(/[A-Z]/) != null) // There is at least one uppercase character
+					{
+						uppercase++;
+					}
+					else if(passwordField.value[i].match(/[a-z]/) != null) // There is at least one lowercase character
+					{
+						lowercase++;
+					}
+					else if(passwordField.value[i].match(/[0-9]/) != null) // There is at least one number
+					{
+						numbers++;
+					}
+					else if(passwordField.value[i].match(/[\\\`~!@#\$%\^&\*\(\)\[\]\{\};:"\'\|,<\.>\/\?\-_\+=]/) != null) // There is at least one symbol
+					{
+						symbols++;
+					}
+					else // There is at least one other character (non alphanumeral or simple symbol)
+					{
+						other++;
+					}
+				}
+
+				// If a member of the character set appeared, increase the net character 
+				// set size based on the number of characters in the set
+				if(uppercase)
+				{
+					characterSet += 26; // ABCDEFGHIJKLMNOPQRSTUVWXYZ
+				}
+				if(lowercase)
+				{
+					characterSet += 26; // abcdefghijklmnopqrstuvwxyz
+				}
+				if(numbers)
+				{
+					characterSet += 10; // 0123456789
+				}
+				if(symbols)
+				{
+					characterSet += 32; // `~!@#$%^&*()-_+={}[]|\;:"\'<>,.?/
+				}
+				if(other)
+				{
+					characterSet += 128; // Other stuff; an arbritarty value to give these foreign characters weight
+				}
+
+				// The entropy equals [Password Length]Log_2[Character set size]
+				// Because JavaScript lacks a base 2 operator (natural log of base e only), we
+				// divide the natural log by the natural log of 2, which solves for a logarithm
+				// in base 2.
+				var entropy = Math.floor(passwordField.value.length * Math.log(characterSet) / Math.log(2));
+				if(isNaN(entropy))
+				{
+					entropy = 0;
+				}
+				entropyValue.style.width = entropy * 2 + \'px\'; // Set the progress bar
+				entropyDescription.innerHTML = entropy + \'', $txt['password_entropy_bits'], '\'; // First part of the description
+
+				if(entropy < ', (isset($modSettings['password_entropy_threshold']) ? $modSettings['password_entropy_threshold'] : 45), ') // Lower threshold
+				{
+					entropyDescription.innerHTML += \'', $txt['password_entropy_weak'], '\'
+					entropyDescription.style.color = \'red\';
+					entropyValue.style.backgroundColor = \'red\';
+				}
+				else if(entropy < ', (isset($modSettings['password_entropy_okay']) ? $modSettings['password_entropy_okay'] : 55), ') // Okay
+				{
+					entropyDescription.innerHTML += \'', $txt['password_entropy_okay'], '\'
+					entropyDescription.style.color = \'green\';
+					entropyValue.style.backgroundColor = \'green\';
+				}
+				else if(entropy < ', (isset($modSettings['password_entropy_good']) ? $modSettings['password_entropy_good'] : 55), ') // Good
+				{
+					entropyDescription.innerHTML += \'', $txt['password_entropy_good'], '\'
+					entropyDescription.style.color = \'green\';
+					entropyValue.style.backgroundColor = \'green\';
+				}
+				else if(entropy < ', (isset($modSettings['password_entropy_great']) ? $modSettings['password_entropy_great'] : 90), ') // Great
+				{
+					entropyDescription.innerHTML += \'', $txt['password_entropy_great'], '\'
+					entropyDescription.style.color = \'green\';
+					entropyValue.style.backgroundColor = \'green\';
+				}
+				else // Best
+				{
+					entropyDescription.innerHTML += \'', $txt['password_entropy_excellent'], '\'
+					entropyDescription.style.color = \'green\';
+					entropyValue.style.backgroundColor = \'green\';
+				}
+			}
+			
+			// Checks if we should re-evaluate the timer-based checking
+			function timerEntropyTest()
+			{
+				// Only check if the password has changed
+				if(lastPassword != passwordField.value)
+				{
+					lastPassword = passwordField.value;
+					CalculateEntropy();
+				}
+			}
+			
+			// Timer for catching other methods of inserting passwords (password managers, copy paste, etc)
+			setInterval(timerEntropyTest, 1000);
+		</script>';
+}]]></add>
+		</operation>
+	</file>
+	
+	<file name="$themedir/Register.template.php">
+		<!-- The client side JavaScript which adds a password strength bar, removes the warning for the hard password requirement, and fills in the bar based on the
+			 password strength (using the same formula as server-side, which allows the user to see when they meet the minimum) -->
+		<operation>
+			<search position="before"><![CDATA[
+					<dl class="register_form" id="password2_group">
+						<dt><strong><label for="smf_autov_pwverify">', $txt['verify_pass'], ':</label></strong></dt>
+						<dd>
+							<input type="password" name="passwrd2" id="smf_autov_pwverify" size="30" tabindex="', $context['tabindex']++, '" class="input_password" />
+							<span id="smf_autov_pwverify_div" style="display: none;">
+								<img id="smf_autov_pwverify_img" src="', $settings['images_url'], '/icons/field_valid.gif" alt="*" />
+							</span>
+						</dd>
+					</dl>';]]></search>
+			<add><![CDATA[
+	if ($modSettings['password_strength'] == 3)
+	{
+		echo '
+					<dl class="register_form" id="password_entropy_field">
+						<dt><strong>', $txt['password_entropy_strength'], ':</strong></dt>
+						<dd>
+							<div id="entropyBackground"><div id="entropyValue"></div></div><span id="entropyDescription">', $txt['password_entropy_no_pass'], '</span>
+						</dd>
+					</dl>
+					<script>
+					// Remove images
+					document.getElementById(\'smf_autov_pwmain_img\').style.display = \'none\';
+					document.getElementById(\'smf_autov_pwverify_img\').style.display = \'none\';
+					
+					var passwordField = document.getElementById(\'smf_autov_pwmain\');
+					var entropyValue = document.getElementById(\'entropyValue\');
+					var entropyDescription = document.getElementById(\'entropyDescription\');
+					var lastPassword;
+					
+					// Calculate entropy on key release or key press
+					passwordField.onkeyup = function()
+					{
+						CalculateEntropy();
+					}
+					passwordField.onkeydown = function()
+					{
+						CalculateEntropy();
+					}
+					
+					function CalculateEntropy()
+					{
+						var uppercase = 0;
+						var lowercase = 0;
+						var numbers = 0;
+						var symbols = 0;
+						var other = 0;
+						var characterSet = 0;
+
+						// Loop through each letter
+						for(var i = 0; i < passwordField.value.length; i++)
+						{
+							// Count the number of letters of each type
+							if(passwordField.value[i].match(/[A-Z]/) != null) // There is at least one uppercase character
+							{
+								uppercase++;
+							}
+							else if(passwordField.value[i].match(/[a-z]/) != null) // There is at least one lowercase character
+							{
+								lowercase++;
+							}
+							else if(passwordField.value[i].match(/[0-9]/) != null) // There is at least one number
+							{
+								numbers++;
+							}
+							else if(passwordField.value[i].match(/[`~!@#\$%\^&\*\(\)\[\]\{\};:"\'\|\\\,<\.>\/\?\-_\+=]/) != null) // There is at least one symbol
+							{
+								symbols++;
+							}
+							else // There is at least one other character (non alphanumeral or simple symbol)
+							{
+								other++;
+							}
+						}
+
+						// If a member of the character set appeared, increase the net character 
+						// set size based on the number of characters in the set
+						if(uppercase)
+						{
+							characterSet += 26; // ABCDEFGHIJKLMNOPQRSTUVWXYZ
+						}
+						if(lowercase)
+						{
+							characterSet += 26; // abcdefghijklmnopqrstuvwxyz
+						}
+						if(numbers)
+						{
+							characterSet += 10; // 0123456789
+						}
+						if(symbols)
+						{
+							characterSet += 32; // `~!@#$%^&*()-_+={}[]|\;:"\'<>,.?/
+						}
+						if(other)
+						{
+							characterSet += 128; // Other stuff; an arbritarty value to give these foreign characters weight
+						}
+
+						// The entropy equals [Password Length]Log_2[Character set size]
+						// Because JavaScript lacks a base 2 operator (natural log of base e only), we
+						// divide the natural log by the natural log of 2, which solves for a logarithm
+						// in base 2.
+						var entropy = Math.floor(passwordField.value.length * Math.log(characterSet) / Math.log(2));
+						if(isNaN(entropy))
+						{
+							entropy = 0;
+						}
+						entropyValue.style.width = entropy * 2 + \'px\'; // Set the progress bar
+						entropyDescription.innerHTML = entropy + \'', $txt['password_entropy_bits'], '\'; // First part of the description
+
+						if(entropy < ', (isset($modSettings['password_entropy_threshold']) ? $modSettings['password_entropy_threshold'] : 45), ') // Lower threshold
+						{
+							entropyDescription.innerHTML += \'', $txt['password_entropy_weak'], '\'
+							entropyDescription.style.color = \'red\';
+							entropyValue.style.backgroundColor = \'red\';
+						}
+						else if(entropy < ', (isset($modSettings['password_entropy_okay']) ? $modSettings['password_entropy_okay'] : 55), ') // Okay
+						{
+							entropyDescription.innerHTML += \'', $txt['password_entropy_okay'], '\'
+							entropyDescription.style.color = \'green\';
+							entropyValue.style.backgroundColor = \'green\';
+						}
+						else if(entropy < ', (isset($modSettings['password_entropy_good']) ? $modSettings['password_entropy_good'] : 55), ') // Good
+						{
+							entropyDescription.innerHTML += \'', $txt['password_entropy_good'], '\'
+							entropyDescription.style.color = \'green\';
+							entropyValue.style.backgroundColor = \'green\';
+						}
+						else if(entropy < ', (isset($modSettings['password_entropy_great']) ? $modSettings['password_entropy_great'] : 90), ') // Great
+						{
+							entropyDescription.innerHTML += \'', $txt['password_entropy_great'], '\'
+							entropyDescription.style.color = \'green\';
+							entropyValue.style.backgroundColor = \'green\';
+						}
+						else // Best
+						{
+							entropyDescription.innerHTML += \'', $txt['password_entropy_excellent'], '\'
+							entropyDescription.style.color = \'green\';
+							entropyValue.style.backgroundColor = \'green\';
+						}
+					}
+					
+					// Checks if we should re-evaluate the timer-based checking
+					function timerEntropyTest()
+					{
+						// Only check if the password has changed
+						if(lastPassword != passwordField.value)
+						{
+							lastPassword = passwordField.value;
+							CalculateEntropy();
+						}
+					}
+					
+					// Timer for catching other methods of inserting passwords (password managers, copy paste, etc)
+					setInterval(timerEntropyTest, 1000);
+				</script>';
+	}]]></add>
+		</operation>
+	</file>
+	
+	<file name="$themedir/Reminder.template.php">
+		<!-- Adds the password strength bar to the password reset page -->
+		<operation>
+			<search position="replace"><![CDATA[
+					<dt>', $txt['verify_pass'], ': </dt>
+					<dd>
+						<input type="password" name="passwrd2" id="smf_autov_pwverify" size="22" class="input_password" />
+						<span id="smf_autov_pwverify_div" style="display: none;">
+							<img id="smf_autov_pwverify_img" src="', $settings['images_url'], '/icons/field_invalid.gif" alt="*" />
+						</span>
+					</dd>
+				</dl>
+				<p class="align_center"><input type="submit" value="', $txt['save'], '" class="button_submit" /></p>
+			</div>]]></search>
+			<add><![CDATA[
+					<dt>', $txt['verify_pass'], ': </dt>
+					<dd>
+						<input type="password" name="passwrd2" id="smf_autov_pwverify" size="22" class="input_password" />
+						<span id="smf_autov_pwverify_div" style="display: none;">
+							<img id="smf_autov_pwverify_img" src="', $settings['images_url'], '/icons/field_invalid.gif" alt="*" />
+						</span>
+					</dd>';
+if ($modSettings['password_strength'] == 3)
+{
+	echo '
+					<dt><strong>', $txt['password_entropy_strength'], ':</strong></dt>
+					<dd>
+						<div id="entropyBackground"><div id="entropyValue"></div></div><br /><span id="entropyDescription">', $txt['password_entropy_no_pass'], '</span>
+					</dd>
+				<script>
+				// Remove images
+				document.getElementById(\'smf_autov_pwmain_img\').style.display = \'none\';
+				document.getElementById(\'smf_autov_pwverify_img\').style.display = \'none\';
+				
+				var passwordField = document.getElementById(\'smf_autov_pwmain\');
+				var entropyValue = document.getElementById(\'entropyValue\');
+				var entropyDescription = document.getElementById(\'entropyDescription\');
+				var lastPassword;
+				
+				// Calculate entropy on key release or key press
+				passwordField.onkeyup = function()
+				{
+					CalculateEntropy();
+				}
+				passwordField.onkeydown = function()
+				{
+					CalculateEntropy();
+				}
+				
+				function CalculateEntropy()
+				{
+					var uppercase = 0;
+					var lowercase = 0;
+					var numbers = 0;
+					var symbols = 0;
+					var other = 0;
+					var characterSet = 0;
+
+					// Loop through each letter
+					for(var i = 0; i < passwordField.value.length; i++)
+					{
+						// Count the number of letters of each type
+						if(passwordField.value[i].match(/[A-Z]/) != null) // There is at least one uppercase character
+						{
+							uppercase++;
+						}
+						else if(passwordField.value[i].match(/[a-z]/) != null) // There is at least one lowercase character
+						{
+							lowercase++;
+						}
+						else if(passwordField.value[i].match(/[0-9]/) != null) // There is at least one number
+						{
+							numbers++;
+						}
+						else if(passwordField.value[i].match(/[`~!@#\$%\^&\*\(\)\[\]\{\};:"\'\|\\\,<\.>\/\?\-_\+=]/) != null) // There is at least one symbol
+						{
+							symbols++;
+						}
+						else // There is at least one other character (non alphanumeral or simple symbol)
+						{
+							other++;
+						}
+					}
+
+					// If a member of the character set appeared, increase the net character 
+					// set size based on the number of characters in the set
+					if(uppercase)
+					{
+						characterSet += 26; // ABCDEFGHIJKLMNOPQRSTUVWXYZ
+					}
+					if(lowercase)
+					{
+						characterSet += 26; // abcdefghijklmnopqrstuvwxyz
+					}
+					if(numbers)
+					{
+						characterSet += 10; // 0123456789
+					}
+					if(symbols)
+					{
+						characterSet += 32; // `~!@#$%^&*()-_+={}[]|\;:"\'<>,.?/
+					}
+					if(other)
+					{
+						characterSet += 128; // Other stuff; an arbritarty value to give these foreign characters weight
+					}
+
+					// The entropy equals [Password Length]Log_2[Character set size]
+					// Because JavaScript lacks a base 2 operator (natural log of base e only), we
+					// divide the natural log by the natural log of 2, which solves for a logarithm
+					// in base 2.
+					var entropy = Math.floor(passwordField.value.length * Math.log(characterSet) / Math.log(2));
+					if(isNaN(entropy))
+					{
+						entropy = 0;
+					}
+					entropyValue.style.width = entropy * 2 + \'px\'; // Set the progress bar
+					entropyDescription.innerHTML = entropy + \'', $txt['password_entropy_bits'], '\'; // First part of the description
+
+					if(entropy < ', (isset($modSettings['password_entropy_threshold']) ? $modSettings['password_entropy_threshold'] : 45), ') // Lower threshold
+					{
+						entropyDescription.innerHTML += \'', $txt['password_entropy_weak'], '\'
+						entropyDescription.style.color = \'red\';
+						entropyValue.style.backgroundColor = \'red\';
+					}
+					else if(entropy < ', (isset($modSettings['password_entropy_okay']) ? $modSettings['password_entropy_okay'] : 55), ') // Okay
+					{
+						entropyDescription.innerHTML += \'', $txt['password_entropy_okay'], '\'
+						entropyDescription.style.color = \'green\';
+						entropyValue.style.backgroundColor = \'green\';
+					}
+					else if(entropy < ', (isset($modSettings['password_entropy_good']) ? $modSettings['password_entropy_good'] : 55), ') // Good
+					{
+						entropyDescription.innerHTML += \'', $txt['password_entropy_good'], '\'
+						entropyDescription.style.color = \'green\';
+						entropyValue.style.backgroundColor = \'green\';
+					}
+					else if(entropy < ', (isset($modSettings['password_entropy_great']) ? $modSettings['password_entropy_great'] : 90), ') // Great
+					{
+						entropyDescription.innerHTML += \'', $txt['password_entropy_great'], '\'
+						entropyDescription.style.color = \'green\';
+						entropyValue.style.backgroundColor = \'green\';
+					}
+					else // Best
+					{
+						entropyDescription.innerHTML += \'', $txt['password_entropy_excellent'], '\'
+						entropyDescription.style.color = \'green\';
+						entropyValue.style.backgroundColor = \'green\';
+					}
+				}
+				
+				// Checks if we should re-evaluate the timer-based checking
+				function timerEntropyTest()
+				{
+					// Only check if the password has changed
+					if(lastPassword != passwordField.value)
+					{
+						lastPassword = passwordField.value;
+						CalculateEntropy();
+					}
+				}
+				
+				// Timer for catching other methods of inserting passwords (password managers, copy paste, etc)
+				setInterval(timerEntropyTest, 1000);
+			</script>';
+}
+echo '
+				</dl>
+				<p class="align_center"><input type="submit" value="', $txt['save'], '" class="button_submit" /></p>
+			</div>]]></add>
+		</operation>
+	</file>
+
+	<file name="$themedir/css/index.css">
+		<!-- Stylesheet stuff so the password strength bar is all shiny -->
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+
+/*
+ * TheOmega's Password Entropy mod styles.
+ * Note that color change occurs when when the password becomes sufficiently
+ * complex, so the colours here are defaults only. Later versions will offer a
+ * means to change the filled bar colour from the mod settings menu.
+ */
+/* The password strength bar background */
+#entropyBackground
+{
+	width: 204px;
+	height: 14px;
+	display: inline-block;
+	border-radius: 5px;
+	background-color: #bbb;
+	margin-right: 5px;
+}
+
+/* The password strength bar foreground */
+#entropyValue
+{
+	background-color: red;
+	height: 10px;
+	width: 0;
+	display: inline-block;
+	max-width: 200px;
+	margin: 2px;
+	border-radius: 5px;
+}
+
+/* Text describing the password strength */
+#entropyDescription
+{
+	color: red;
+}
+]]></add>
+		</operation>
+	</file>
+
+</modification>

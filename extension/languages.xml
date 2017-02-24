@@ -1,0 +1,169 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="http://dev.smfchat.com/xsl/modification.xsl"?>
+<!DOCTYPE modification SYSTEM "http://www.simplemachines.org/xml/modification">
+<modification xmlns="http://www.simplemachines.org/xml/modification" xmlns:smf="http://www.simplemachines.org/">
+	<id>theOmega:passwordEntropyParsing</id>
+	<name>passwordEntropyParsing</name>
+	<version>1.4</version>
+
+	<file name="$languagedir/ManageSettings.english.php">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['setting_password_strength_entropic'] = 'Entropic - a minimum entropy must be met';
+$txt['password_entropy_threshold'] = 'Password entropy threshold (default 45):';
+$txt['password_entropy_okay'] = 'Password entropy level one (default 55):';
+$txt['password_entropy_good'] = 'Password entropy level two (default 75):';
+$txt['password_entropy_great'] = 'Password entropy level three (default 90):';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/ManageSettings.english-utf8.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['setting_password_strength_entropic'] = 'Entropic - a minimum entropy must be met';
+$txt['password_entropy_threshold'] = 'Password entropy threshold (default 45):';
+$txt['password_entropy_okay'] = 'Password entropy level one (default 55):';
+$txt['password_entropy_good'] = 'Password entropy level two (default 75):';
+$txt['password_entropy_great'] = 'Password entropy level three (default 90):';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/ManageSettings.english_british.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['setting_password_strength_entropic'] = 'Entropic - a minimum entropy must be met';
+$txt['password_entropy_threshold'] = 'Password entropy threshold (default 45):';
+$txt['password_entropy_okay'] = 'Password entropy level one (default 55):';
+$txt['password_entropy_good'] = 'Password entropy level two (default 75):';
+$txt['password_entropy_great'] = 'Password entropy level three (default 90):';
+]]></add>
+		</operation>
+	</file>	
+	
+	<file name="$languagedir/ManageSettings.english_british-utf8.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['setting_password_strength_entropic'] = 'Entropic - a minimum entropy must be met';
+$txt['password_entropy_threshold'] = 'Password entropy threshold (default 45):';
+$txt['password_entropy_okay'] = 'Password entropy level one (default 55):';
+$txt['password_entropy_good'] = 'Password entropy level two (default 75):';
+$txt['password_entropy_great'] = 'Password entropy level three (default 90):';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/index.english.php">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['password_entropy_strength'] = 'Password strength';
+$txt['password_entropy_bits'] = ' bits.';
+$txt['password_entropy_weak'] = ' Too weak!';
+$txt['password_entropy_okay'] = ' Okay.';
+$txt['password_entropy_good'] = ' Good.';
+$txt['password_entropy_great'] = ' Great.';
+$txt['password_entropy_excellent'] = ' Excellent!';
+$txt['password_entropy_no_pass'] = ' N/A <noscript>(requires JavaScript)</noscript>';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/index.english-utf8.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['password_entropy_strength'] = 'Password strength';
+$txt['password_entropy_bits'] = ' bits.';
+$txt['password_entropy_weak'] = ' Too weak!';
+$txt['password_entropy_okay'] = ' Okay.';
+$txt['password_entropy_good'] = ' Good.';
+$txt['password_entropy_great'] = ' Great.';
+$txt['password_entropy_excellent'] = ' Excellent!';
+$txt['password_entropy_no_pass'] = ' N/A <noscript>(requires JavaScript)</noscript>';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/index.english_british.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['password_entropy_strength'] = 'Password strength';
+$txt['password_entropy_bits'] = ' bits.';
+$txt['password_entropy_weak'] = ' Too weak!';
+$txt['password_entropy_okay'] = ' Okay.';
+$txt['password_entropy_good'] = ' Good.';
+$txt['password_entropy_great'] = ' Great.';
+$txt['password_entropy_excellent'] = ' Excellent!';
+$txt['password_entropy_no_pass'] = ' N/A <noscript>(requires JavaScript)</noscript>';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/index.english_british-utf8.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['password_entropy_strength'] = 'Password strength';
+$txt['password_entropy_bits'] = ' bits.';
+$txt['password_entropy_weak'] = ' Too weak!';
+$txt['password_entropy_okay'] = ' Okay.';
+$txt['password_entropy_good'] = ' Good.';
+$txt['password_entropy_great'] = ' Great.';
+$txt['password_entropy_excellent'] = ' Excellent!';
+$txt['password_entropy_no_pass'] = ' N/A <noscript>(requires JavaScript)</noscript>';
+]]></add>
+		</operation>
+	</file>
+
+	<file name="$languagedir/Errors.english.php">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['profile_error_password_entropic_failure'] = 'Your password did not meet the minimum required complexity. Consider either increasing the length or using a variance of character types.';
+$txt['profile_error_password_entropic_failure_duplicates'] = 'Your password was deemed too weak because it contained too many consecutive duplicate characters. Please make your password more complex.';
+$txt['profile_error_password_entropic_failure_series'] = 'Your password was deemed too weak because it contained too many characters in a series. Please make your password more complex.';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/Errors.english-utf8.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['profile_error_password_entropic_failure'] = 'Your password did not meet the minimum required complexity. Consider either increasing the length or using a variance of character types.';
+$txt['profile_error_password_entropic_failure_duplicates'] = 'Your password was deemed too weak because it contained too many consecutive duplicate characters. Please make your password more complex.';
+$txt['profile_error_password_entropic_failure_series'] = 'Your password was deemed too weak because it contained too many characters in a series. Please make your password more complex.';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/Errors.english_british.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['profile_error_password_entropic_failure'] = 'Your password did not meet the minimum required complexity. Consider either increasing the length or using a variance of character types.';
+$txt['profile_error_password_entropic_failure_duplicates'] = 'Your password was deemed too weak because it contained too many consecutive duplicate characters. Please make your password more complex.';
+$txt['profile_error_password_entropic_failure_series'] = 'Your password was deemed too weak because it contained too many characters in a series. Please make your password more complex.';
+]]></add>
+		</operation>
+	</file>
+	
+	<file name="$languagedir/Errors.english_british-utf8.php" error="skip">
+		<operation>
+			<search position="end" />
+			<add><![CDATA[
+$txt['profile_error_password_entropic_failure'] = 'Your password did not meet the minimum required complexity. Consider either increasing the length or using a variance of character types.';
+$txt['profile_error_password_entropic_failure_duplicates'] = 'Your password was deemed too weak because it contained too many consecutive duplicate characters. Please make your password more complex.';
+$txt['profile_error_password_entropic_failure_series'] = 'Your password was deemed too weak because it contained too many characters in a series. Please make your password more complex.';
+]]></add>
+		</operation>
+	</file>
+
+</modification>

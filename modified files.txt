@@ -1,0 +1,15 @@
+Modified files:
+
+Sources/ManageSettings.php
+Sources/Profile-Modify.php
+Sources/Subs-Auth.php
+Themes/default/Register.template.php
+Themes/default/Profile.template.php
+Themes/default/Reminder.template.php
+Themes/default/languages/ManageSettings.english.php
+Themes/default/languages/ManageSettings.english-utf8.php
+Themes/default/languages/Errors.english.php
+Themes/default/languages/Errors.english-utf8.php
+
+See old/ and new/ for changes. diff.patch shows just the changes (generated with
+diff -r old new > diff.patch)
